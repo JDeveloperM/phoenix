@@ -1,0 +1,7 @@
+{
+  "functions": "convex/",
+  "generateCommonJSApi": false,
+  "node": {
+    "externalPackages": ["@xmtp/browser-sdk", "@anyone-protocol/anyone-client"]
+  }
+}
