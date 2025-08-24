@@ -18,7 +18,7 @@ import {
 import { WalletConnect } from "./wallet-connect"
 
 import { InviteBootstrap } from "./invite-bootstrap"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, Suspense } from "react"
 
 export function WelcomeScreen() {
   const heroRef = useRef<HTMLDivElement>(null)
@@ -92,7 +92,9 @@ export function WelcomeScreen() {
           <div className="pt-8 cyber-entrance-2">
             <WalletConnect />
             {/* Handle invite deep link: connect, register if needed, then open DM */}
-            <InviteBootstrap />
+            <Suspense fallback={null}>
+              <InviteBootstrap />
+            </Suspense>
           </div>
         </div>
       </section>
