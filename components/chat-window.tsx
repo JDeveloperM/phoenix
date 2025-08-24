@@ -329,8 +329,7 @@ export function ChatWindow({ conversationId, onSelectConversation }: ChatWindowP
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent animate-pulse"></div>
       <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent animate-pulse"></div>
 
-      {/* Privacy Score Indicator */}
-      <PrivacyScoreIndicator position="top-right" />
+
 
       {/* Cyberpunk Chat Header */}
       <div className="p-4 border-b border-cyan-500 bg-gradient-to-r from-black via-cyan-950 to-black backdrop-blur-sm relative" style={{ borderColor: 'rgba(34,197,94,0.3)', background: 'linear-gradient(to right, rgba(0,0,0,0.8), rgba(8,145,178,0.2), rgba(0,0,0,0.8))' }}>
@@ -358,6 +357,18 @@ export function ChatWindow({ conversationId, onSelectConversation }: ChatWindowP
               <RegistrationStatus />
             </div>
           </div>
+          {/* Group Creation Button - only show for direct messages */}
+          {!conversationId?.startsWith("group:") && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setGroupModalOpen(true)}
+              className="h-10 w-10 p-0 text-cyan-400 hover:text-white hover:bg-gradient-to-r hover:from-red-600/30 hover:to-cyan-600/30 rounded-lg transition-all duration-300 cyber-glow-cyan border border-cyan-400/30 relative z-10"
+              title="Create Group"
+            >
+              <Users className="w-5 h-5" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -627,6 +638,147 @@ export function ChatWindow({ conversationId, onSelectConversation }: ChatWindowP
           </p>
         </div>
       </div>
+
+      {/* Group Creation Modal */}
+      <Dialog open={isGroupModalOpen} onOpenChange={setGroupModalOpen}>
+        <DialogContent className="bg-gradient-to-br from-black/95 via-cyan-950/30 to-black/95 border border-cyan-500/50 text-white max-w-md rounded-xl backdrop-blur-xl cyber-glow-cyan">
+          <div className="absolute inset-0 bg-[url('/circuit-pattern.svg')] opacity-10 rounded-xl"></div>
+          <DialogHeader className="relative">
+            <DialogTitle className="text-white text-lg font-mono tracking-wider cyber-smooth-glow">
+              <span className="text-cyan-400">[CREATE]</span> NEURAL NETWORK
+              <div className="text-sm text-gray-400 font-mono tracking-widest">GROUP CHAT</div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 relative">
+            <div>
+              <label className="text-sm text-cyan-400 font-mono tracking-wider">GROUP NAME</label>
+              <Input
+                placeholder="Enter group name..."
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                className="bg-black/60 border border-cyan-500/30 text-white placeholder-cyan-400/60 rounded-xl focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 font-mono text-sm backdrop-blur-sm transition-all duration-300 mt-2"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-cyan-400 font-mono tracking-wider">ADD MEMBERS</label>
+              <div className="flex space-x-2 mt-2">
+                <Input
+                  placeholder="Enter wallet address..."
+                  value={memberAddress}
+                  onChange={(e) => setMemberAddress(e.target.value)}
+                  className="bg-black/60 border border-cyan-500/30 text-white placeholder-cyan-400/60 rounded-xl focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 font-mono text-sm backdrop-blur-sm transition-all duration-300 flex-1"
+                />
+                <Button
+                  onClick={async () => {
+                    if (!memberAddress.trim()) return
+                    setPendingMembers(prev => [...prev, memberAddress.trim()])
+                    setMemberAddress("")
+                  }}
+                  disabled={!memberAddress.trim() || adding}
+                  className="bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-700 hover:to-cyan-800 text-white px-4 rounded-xl transition-all duration-300 font-mono tracking-wider"
+                >
+                  ADD
+                </Button>
+              </div>
+            </div>
+            {pendingMembers.length > 0 && (
+              <div>
+                <label className="text-sm text-cyan-400 font-mono tracking-wider">PENDING MEMBERS</label>
+                <div className="space-y-2 mt-2">
+                  {pendingMembers.map((member, index) => (
+                    <div key={index} className="flex items-center justify-between bg-gray-800/50 p-2 rounded-lg">
+                      <span className="text-white text-sm font-mono">{member}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setPendingMembers(prev => prev.filter((_, i) => i !== index))}
+                        className="text-red-400 hover:text-red-300 h-6 w-6 p-0"
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="relative">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setGroupModalOpen(false)
+                setGroupName("")
+                setMemberAddress("")
+                setPendingMembers([])
+              }}
+              className="text-gray-400 hover:text-white hover:bg-gray-700/50 font-mono tracking-wider"
+            >
+              CANCEL
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!groupName.trim() || pendingMembers.length === 0) return
+                try {
+                  setAdding(true)
+                  // Add current conversation peer to the group
+                  const allMembers = [conversationId, ...pendingMembers]
+
+                  // Convert addresses to inboxIds
+                  const inboxIds = []
+                  for (const address of allMembers) {
+                    try {
+                      const inboxId = await new (await import("@xmtp/browser-sdk")).Utils().getInboxIdForIdentifier(
+                        { identifier: address, identifierKind: "Ethereum" },
+                        "production",
+                      )
+                      if (inboxId) inboxIds.push(inboxId)
+                    } catch (e) {
+                      console.error(`Failed to get inboxId for ${address}`, e)
+                    }
+                  }
+
+                  if (inboxIds.length === 0) {
+                    throw new Error("No valid members found")
+                  }
+
+                  // Create group conversation
+                  const group = await client?.conversations.newGroup(inboxIds, {
+                    name: groupName,
+                    imageUrlSquare: "", // Could be enhanced to support group images
+                  })
+
+                  if (group && onSelectConversation) {
+                    onSelectConversation(`group:${group.id}`)
+                  }
+
+                  // Reset form
+                  setGroupModalOpen(false)
+                  setGroupName("")
+                  setMemberAddress("")
+                  setPendingMembers([])
+                } catch (error) {
+                  console.error("Failed to create group:", error)
+                } finally {
+                  setAdding(false)
+                }
+              }}
+              disabled={!groupName.trim() || pendingMembers.length === 0 || adding}
+              className="bg-gradient-to-r from-red-600 via-red-500 to-red-700 hover:from-red-700 hover:via-red-600 hover:to-red-800 text-white rounded-xl transition-all duration-300 font-mono tracking-wider cyber-glow-red shadow-lg shadow-red-500/30"
+            >
+              {adding ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <span className="text-cyan-400">[CREATING...]</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-cyan-400">[CREATE]</span> GROUP
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
